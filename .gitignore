@@ -1,7 +1,10 @@
 runs/*
-venv/
-weight/
+venv/*
+weight/*
 /*.jpg
 /*.mp4
 
+
+!example-result.mp4
 !runs/.gitkeep
+!weight/.gitkeep
