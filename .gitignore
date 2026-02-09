@@ -1,0 +1,7 @@
+runs/
+venv/
+weight/
+/*.jpg
+/*.mp4
+
+!runs/.gitkeep
