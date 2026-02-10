@@ -1,21 +1,41 @@
 import streamlit as st
 from ultralytics import YOLO
 import cv2
+import torch as tch
+
+import os
+import gdown
+
+WEIGHT_PATH = "weights/best.pt"
+
+
+
+if not os.path.exists(WEIGHT_PATH):
+    os.makedirs("weights", exist_ok=True)
+    gdown.download(
+        "https://drive.google.com/file/d/1G5a8tMvZwAiO26cUoXRErGDwhWyAtrgL/view?usp=sharing", WEIGHT_PATH, quiet=False
+    )
+
+model = YOLO(WEIGHT_PATH)
+
+gpu = False
+if tch.cuda.is_available():
+    gpu = True
 
 st.set_page_config(page_title="Deteksi Rokok", layout="wide")
 st.title("🚬 Deteksi Rokok Realtime (YOLOv8)")
+
 
 # Load model
 @st.cache_resource
 def load_model():
     return YOLO("weight/best.pt", task="detect")
 
+
 model = load_model()
 
 # Sidebar
-conf_thres = st.sidebar.slider(
-    "Confidence Threshold", 0.1, 1.0, 0.5, 0.05
-)
+conf_thres = st.sidebar.slider("Confidence Threshold", 0.1, 1.0, 0.5, 0.05)
 
 start = st.sidebar.button("▶ Start Camera")
 stop = st.sidebar.button("⏹ Stop Camera")
@@ -38,6 +58,7 @@ if start:
             imgsz=640,
             conf=conf_thres,
             stream=True,
+            device=0 if gpu else "cpu",
             verbose=False,
         )
 
