@@ -78,4 +78,4 @@ deteksi rokok/
 - Untuk training model, gunakan Ultralytics YOLOv8 dengan dataset yang sesuai.
 
 ## Lisensi
-Proyek ini untuk tujuan edukasi dan penelitian.
+Proyek ini untuk tujuan gabut saja.
