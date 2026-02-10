@@ -3,6 +3,7 @@ venv/*
 weight/*
 /*.jpg
 /*.mp4
+dataset/*
 
 
 !example-result.mp4

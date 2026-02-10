@@ -43,7 +43,7 @@ while cap.isOpened():
             # draw label
             cv2.putText(
                 frame,
-                f"{model.names[clss]} {conf:.2f}",
+                f"{model.names[clss]} {conf * 100:.2f}",
                 (x1, y1 - 10),
                 cv2.FONT_HERSHEY_TRIPLEX,
                 0.6,
