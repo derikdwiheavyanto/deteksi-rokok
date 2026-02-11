@@ -20,12 +20,14 @@ if not os.path.exists(WEIGHT_PATH):
 
     gdown.download(url, WEIGHT_PATH, quiet=False)
 
+
 # ===============================
 # Load model (cache)
 # ===============================
 @st.cache_resource
 def load_model():
     return YOLO(WEIGHT_PATH)
+
 
 model = load_model()
 
@@ -39,9 +41,8 @@ device = 0 if torch.cuda.is_available() else "cpu"
 st.set_page_config(page_title="Deteksi Rokok", layout="wide")
 st.title("🚬 Deteksi Rokok Realtime (YOLOv8 + WebRTC)")
 
-conf_thres = st.sidebar.slider(
-    "Confidence Threshold", 0.1, 1.0, 0.5, 0.05
-)
+conf_thres = st.sidebar.slider("Confidence Threshold", 0.1, 1.0, 0.5, 0.05)
+
 
 # ===============================
 # Video Processor
@@ -50,13 +51,15 @@ class YOLOProcessor(VideoProcessorBase):
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
+        
+        img = cv2.resize(img, (320, 240))
 
         img = cv2.flip(img, 1)
-        
+
         # YOLO inference
         results = model(
             img,
-            imgsz=640,
+            imgsz=320,
             conf=conf_thres,
             device=device,
             verbose=False,
@@ -77,7 +80,7 @@ class YOLOProcessor(VideoProcessorBase):
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
                     img,
-                    f"{model.names[cls]} {conf*100:.1f}%",
+                    f"{model.names[cls]} {conf*100:.0f}%",
                     (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
@@ -95,9 +98,19 @@ rtc_config = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
-webrtc_streamer(
-    key="yolo",
-    video_processor_factory=YOLOProcessor,
-    rtc_configuration=rtc_config,
-    media_stream_constraints={"video": True, "audio": False},
-)
+col1, col2, col3 = st.columns([0.5, 3, 0.5])
+
+with col2:
+    webrtc_streamer(
+        key="yolo",
+        video_processor_factory=YOLOProcessor,
+        rtc_configuration=rtc_config,
+        media_stream_constraints={
+            "video": {
+                "width": {"ideal": 320},
+                "height": {"ideal": 240},
+                "frameRate": {"ideal": 12},  # turunkan biar tidak lag
+            },
+            "audio": False,
+        },
+    )
