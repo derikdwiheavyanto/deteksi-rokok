@@ -1,64 +1,64 @@
 import streamlit as st
 from ultralytics import YOLO
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+import av
 import cv2
-import torch as tch
-
+import torch
 import os
 import gdown
 
 WEIGHT_PATH = "weights/best.pt"
 
-
-
+# ===============================
+# Download model jika belum ada
+# ===============================
 if not os.path.exists(WEIGHT_PATH):
     os.makedirs("weights", exist_ok=True)
-    gdown.download(
-        "https://drive.google.com/file/d/1G5a8tMvZwAiO26cUoXRErGDwhWyAtrgL/view?usp=sharing", WEIGHT_PATH, quiet=False
-    )
 
-model = YOLO(WEIGHT_PATH)
+    FILE_ID = "1G5a8tMvZwAiO26cUoXRErGDwhWyAtrgL"
+    url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 
-gpu = False
-if tch.cuda.is_available():
-    gpu = True
+    gdown.download(url, WEIGHT_PATH, quiet=False)
 
-st.set_page_config(page_title="Deteksi Rokok", layout="wide")
-st.title("🚬 Deteksi Rokok Realtime (YOLOv8)")
-
-
-# Load model
+# ===============================
+# Load model (cache)
+# ===============================
 @st.cache_resource
 def load_model():
-    return YOLO("weight/best.pt", task="detect")
-
+    return YOLO(WEIGHT_PATH)
 
 model = load_model()
 
-# Sidebar
-conf_thres = st.sidebar.slider("Confidence Threshold", 0.1, 1.0, 0.5, 0.05)
 
-start = st.sidebar.button("▶ Start Camera")
-stop = st.sidebar.button("⏹ Stop Camera")
+print(f"Cuda is available: {torch.cuda.is_available()}")
+device = 0 if torch.cuda.is_available() else "cpu"
 
-frame_window = st.image([])
+# ===============================
+# Streamlit UI
+# ===============================
+st.set_page_config(page_title="Deteksi Rokok", layout="wide")
+st.title("🚬 Deteksi Rokok Realtime (YOLOv8 + WebRTC)")
 
-if start:
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+conf_thres = st.sidebar.slider(
+    "Confidence Threshold", 0.1, 1.0, 0.5, 0.05
+)
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Kamera tidak bisa dibuka")
-            break
+# ===============================
+# Video Processor
+# ===============================
+class YOLOProcessor(VideoProcessorBase):
 
-        frame = cv2.flip(frame, 1)
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
 
+        img = cv2.flip(img, 1)
+        
+        # YOLO inference
         results = model(
-            frame,
+            img,
             imgsz=640,
             conf=conf_thres,
-            stream=True,
-            device=0 if gpu else "cpu",
+            device=device,
             verbose=False,
         )
 
@@ -74,10 +74,10 @@ if start:
             for box, conf, cls in zip(xyxy, confs, clss):
                 x1, y1, x2, y2 = map(int, box)
 
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
-                    frame,
-                    f"{model.names[cls]} {conf*100:.2f}%",
+                    img,
+                    f"{model.names[cls]} {conf*100:.1f}%",
                     (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
@@ -85,11 +85,19 @@ if start:
                     2,
                 )
 
-        # BGR → RGB (WAJIB di Streamlit)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_window.image(frame, channels="RGB")
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        if stop:
-            break
 
-    cap.release()
+# ===============================
+# WebRTC Configuration
+# ===============================
+rtc_config = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
+
+webrtc_streamer(
+    key="yolo",
+    video_processor_factory=YOLOProcessor,
+    rtc_configuration=rtc_config,
+    media_stream_constraints={"video": True, "audio": False},
+)
